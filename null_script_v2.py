@@ -22,9 +22,9 @@ MIT_DOMAINS=('WebCentral','Netregistry Pty Ltd','NetRegistry Pty','NetRegistry')
 FILELIST=['GeoIP2-ISP.mmdb',WHITELIST]
 LOGFILE='null.log'
 DB_FILE="GeoIP2-ISP.mmdb"
-# raw_input returns the empty string for "enter"
 yes = set(['yes','y', 'ye', ''])
 no = set(['no','n'])
+
 
 
 
