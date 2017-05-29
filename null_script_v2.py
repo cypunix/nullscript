@@ -1,6 +1,21 @@
 #!/usr/bin/python
 """
-This script is to block IPs or Ranges during attacks or abuses on null.private.netregistry.net 
+Description:
+This script is to block IPs or Netranges during attacks or abuses on null.private.netregistry.net. The functionality of the script has been extended by checking IP owners agains MIT domains and MIT ISP.
+
+Usage: python -r {reason} -s {IP/NetRange}
+Example: sudo python -r "Brute force attack on xxx.yyy.co.au domain was performed from this IP" -s 55.55.55.55
+Result: 55.55.55.55 is owned by : US Department of Defense Network 
+Do you want to blacklist the IP(s) above? [y/n]/[yes/no]
+
+LOG: 2017-05-29 10:15:37  << mstepinski >> 55.55.55.55 registered by: US Department of Defense Network - getting blacklisted due to : "Brute force attack on xxx.yyy.co.au domain was performed from this IP"
+Command Executed: /sbin/route add -host 55.55.55.55 dev lo
+
+
+Dependencies:
+Use pipe to install missing pkgs: sudo pip install {package}
+example: sudo pip install geoip2
+
 """
 #import datetime
 import sys, json, netaddr
@@ -59,9 +74,11 @@ Generate IPs list from the network range
 def all_ips(source_ip):		
 	range_ip_list=[] 
 	if CheckIpValidity(source_ip):
+		#append the integeres instead of strings to the list
 		range_ip_list.append(ip2len(source_ip))
 	elif RangeCheck(source_ip):
 		for ip in IPNetwork(source_ip):
+			#append the integeres instead of strings to the list
 			range_ip_list.append(ip2len(ip))
 	else:
 		print "fak"
@@ -86,7 +103,7 @@ def check_files():
 """
 def CheckIpValidity(source_ip):
     ValidIpAddressRegex = '^(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$'
-    ip_check_result = re.search(ValidIpAddressRegex,source_ip)
+    ip_check_result = re.search(ValidIpAddressRegex,source_ip)    #validate IP integrity 
     if ip_check_result:
 		ip_check = 1
     else:
@@ -120,16 +137,12 @@ def blacklist(ip_list, whiteint = []):
 			data = json.load(f)
 			if len(ip_list) > 0:
 				ip = IPNetwork(ip_list)
-				#~ print type(ip)
-				#~ print "ip.first.ip = %s" % ip[0]
-				#~ print "ip.last.ip = %s" % ip[-1]
-				#~ print "ip.first.ip = %s" % ip2len(ip[0])
-				#~ print "ip.last.ip = %s" % ip2len(ip[-1])
+
 				for key, value in data['mit_domains'].iteritems():
 					if ip2len(key) >= ip2len(ip[0]) and ip2len(key) <= ip2len(ip[-1]):
-						#print "IP %s is withing the range " % key
+						#"IP %s is withing the range " % key
 						mit_ip.append((key,value))
-				#print mit_ip
+				#list all MIT IPs
 				if len(mit_ip) != 0:
 					for i in mit_ip:
 						print "%s - is whitelisted and belongs to: %s" % (i[0],i[1])
@@ -141,7 +154,9 @@ def blacklist(ip_list, whiteint = []):
 					reader = geoip2.database.Reader(DB_FILE)
 					for i in all_ips(ip_list):
 						try:
+							#store response from DB query
 							response = reader.isp(len2ip(i))
+							#sort IPs and assign to correct groups
 							if response.isp in MIT_DOMAINS:
 								mit.append((i,response.isp))
 							else:
@@ -166,10 +181,8 @@ def blacklist(ip_list, whiteint = []):
 				print "ip 1"
 				
 		f.close()	
-					
-		#print "not mit " , not_mit
-		#print mit
-				
+			
+		#confirm if we want to blacklist not MIT IPs	
 		for i in not_mit:
 			print("%s is owned by : %s " % (len2ip(i[0]),i[1]))
 		print("Do you want to blacklist the IP(s) above? [y/n]/[yes/no]")
@@ -178,7 +191,8 @@ def blacklist(ip_list, whiteint = []):
 		if choice in yes:
 			
 			for ip in not_mit:
-				usrlogger.info("%s registered by: %s - got blacklisted due to : \"%s\"" % (len2ip(ip[0]),ip[1],reason))
+				#check if the IP is not already nulled, if not null it and log the event
+				usrlogger.info("%s registered by: %s - getting blacklisted due to : \"%s\"" % (len2ip(ip[0]),ip[1],reason))
 				#Aidan's function to null route the ip (:
 				routecheck(ip[0], "blacklist")	
 		elif choice in no:
@@ -190,21 +204,18 @@ def blacklist(ip_list, whiteint = []):
 
 			
 			
-			
+	except ValueError as e:
+		print "Format of JSON file is incorrect: - " ,e 	
 	except IOError, (errno, strerror):
 		print "I/O Error(%s) : %s" % (errno, strerror)
 	except:
 		print "Unexpected error:", sys.exc_info()[0]
 		raise
 
-"""
-the following function gathers all Ips from the WHITELIST file and compare them with the source IPs, It return two lists mit and not_mit. The first one contains IPs that were found 
-in WHITELIST file and the other, addresses that weren't in the file.
-"""
-
 	
-
-def routecheck(ip, routetype):
+#perform routing test and final blacklist.
+def routecheck(ip_int, routetype):
+	ip = len2ip(ip_int)
 	#is the route nulled?
 	bashCommand = "/bin/netstat -nr |grep %s" % ip
 	outpt = os.popen(bashCommand).read()
@@ -222,22 +233,6 @@ def routecheck(ip, routetype):
 
 
 	
-"""
-Check who owns the IP
-"""
-def CheckIpOwner(ip):
-	global MIT_DOMAINS	
-	try:
-		reader = geoip2.database.Reader(DB_FILE)
-		response = reader.isp(ip)
-		if response.isp not in MIT_DOMAINS:
-			return (0,response.isp)
-		else:
-			return (1,response.isp)
-	#the exceptions are being handled by the whitelist function - it will be fixed in the v.2.0
-	except Exception as e:
-		pass
-
 
 """
 ### The Universe Big Bang ###
