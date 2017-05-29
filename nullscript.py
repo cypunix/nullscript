@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/bin/env python
 """
 Description:
 This script is to block IPs or Netranges during attacks or abuses on null.private.netregistry.net. The functionality of the script has been extended by checking IP owners agains MIT domains and MIT ISP.
@@ -18,16 +18,14 @@ example: sudo pip install geoip2
 
 """
 #import datetime
-import sys, json, netaddr
+import sys, json, netaddr, time, re, subprocess
 from netaddr import *
-import re
-import subprocess
 import os.path
 #import pwd #the current processs user id
 import argparse #parser 
 #import socket, struct #used to convert IP to string
 import logging #log the action
-from geoip import geolite2
+#from geoip import geolite2
 from netaddr import IPNetwork
 import geoip2.database
 
@@ -35,7 +33,7 @@ import geoip2.database
 WHITELIST="whitelist.json"
 MIT_DOMAINS=('WebCentral','Netregistry Pty Ltd','NetRegistry Pty','NetRegistry')
 FILELIST=['GeoIP2-ISP.mmdb',WHITELIST]
-LOGFILE='null.log'
+LOGFILE='/var/log/nullscript/nullscript_%s.log' % time.strftime("%Y_%m_%d")
 DB_FILE="GeoIP2-ISP.mmdb"
 yes = set(['yes','y', 'ye', ''])
 no = set(['no','n'])
@@ -258,7 +256,7 @@ if __name__ == "__main__":
 	#set up a logging scheme
 	logging.basicConfig(level=logging.INFO,
                     format='%(asctime)-15s %(name)-12s %(message)s',
-                    filename='null.log',
+                    filename=LOGFILE,
                     filemode='a',
                     datefmt="%Y-%m-%d %H:%M:%S")
     #print to both stdout and file 
